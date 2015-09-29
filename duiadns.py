@@ -130,8 +130,12 @@ def postupdate(host, md5pass, ipv4=None, ipv6=None):
 		raise ValueError('At least one of ipv4 and ipv6 must be specified')
 
 	# Build the update URL
-	srv = ("http://ipv%d.duia.ro/dynamic.duia?host=%s&password=%s" %
-			((6 if not ipv4 else 4), host, md5pass))
+	if not ipv4: ipstr = 'ipv6'
+	elif not ipv6: ipstr = 'ipv4'
+	else: ipstr = 'ip'
+
+	srv = ("http://%s.duia.ro/dynamic.duia?host=%s&password=%s" % (ipstr, host, md5pass))
+
 	if ipv4: srv += "&ip4=" + ipv4
 	if ipv6: srv += "&ip6=" + ipv6
 
