@@ -30,9 +30,8 @@ def findipv6():
 	'''
 	Use the public (and perhaps temporary) IPv6 address seen by DUIA to
 	select a non-temporary and non-link-local address on the same
-	interface. If the DUIA-identified address is neither temporary nor
-	deprecated, it is always returned. Otherwise, the first suitable
-	address is returned.
+	interface. If the DUIA-identified address is not temporary, it is
+	always returned. Otherwise, the first suitable address is returned.
 
 	If no matching address can be found, None is returned.
 	'''
@@ -46,8 +45,8 @@ def findipv6():
 		'''
 		Convert an addr dictionary produced by netifaces into an
 		(IPAddress, bool) tuple where the bool is True if and only if
-		addr does not contain 'temporary' or 'deprecated' flags and is
-		not link-local or loopback.
+		addr does not contain the 'temporary' flag and is not
+		link-local or loopback.
 		'''
 		# Canonize the address
 		ipaddr = IPAddress(addr['addr'])
@@ -60,9 +59,7 @@ def findipv6():
 		try: flags = addr['flags']
 		except KeyError: return ipaddr, True
 
-		# These values are defined on OS X
-		tempflag, deprflag = 0x0080, 0x0010
-		return ipaddr, not (flags & tempflag or flags & deprflag)
+		return ipaddr, not (flags & netifaces.IN6_IFF_TEMPORARY)
 
 
 	# Loop through all interfaces to find possible addresses
