@@ -25,4 +25,9 @@ if __name__ == '__main__':
 			author_email='ajh@sideband.org',
 			platforms=['any'], license='BSD',
 			scripts=['duiadns.py',],
+			install_requires=[
+				'netifaces',
+				'netaddr',
+				'requests'
+			],
 		)
