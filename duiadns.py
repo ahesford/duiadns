@@ -27,7 +27,7 @@
 import sys
 import requests
 import netifaces
-import ConfigParser
+import configparser
 
 _useragent = "DUIA-DNS-UPDATER/1.0"
 
@@ -102,7 +102,7 @@ def findipv6():
 		if addrmap[pubaddr]: return str(pubaddr)
 
 		# Otherwise, just return the first valid address
-		for addr, valid in addrmap.iteritems():
+		for addr, valid in addrmap.items():
 			if valid: return str(addr)
 
 		# No need to look over other interfaces
@@ -202,45 +202,45 @@ def updateEngine(config):
 
 	try:
 		hostnames = config.get(dsec, 'hostname').split()
-	except ConfigParser.Error:
-		print >> sys.stderr, 'ERROR: Configuration must specify at least one hostname in [%s]' % dsec
+	except configparser.Error:
+		print('ERROR: Configuration must specify at least one hostname in [%s]' % dsec, file=sys.stderr)
 		return False
 
 	try:
 		password = config.get(dsec, 'password')
-	except ConfigParser.Error:
-		print >> sys.stderr, 'ERROR: Configuration must specify password in [%s]' % dsec
+	except configparser.Error:
+		print('ERROR: Configuration must specify password in [%s]' % dsec, file=sys.stderr)
 		return False
 
 	try:
 		cache = config.get(dsec, 'cache')
-	except ConfigParser.Error:
-		print >> sys.stderr, 'ERROR: Configuration must specify cache in [%s]' % dsec
+	except configparser.Error:
+		print('ERROR: Configuration must specify cache in [%s]' % dsec, file=sys.stderr)
 		return False
 
 	try:
 		usev4 = config.getboolean(dsec, 'ipv4')
-	except ConfigParser.NoOptionError:
+	except configparser.NoOptionError:
 		usev4 = False
-	except ConfigParser.Error:
-		print >> sys.stderr, 'ERROR: Optional ipv4 boolean in [%s] incorrectly specified' % dsec
+	except configparser.Error:
+		print('ERROR: Optional ipv4 boolean in [%s] incorrectly specified' % dsec, file=sys.stderr)
 		return False
 
 	try:
 		usev6 = config.getboolean(dsec, 'ipv6')
-	except ConfigParser.NoOptionError:
+	except configparser.NoOptionError:
 		usev6 = False
-	except ConfigParser.Error:
-		print >> sys.stderr, 'ERROR: Optional ipv6 boolean in [%s] incorrectly specified' % dsec
+	except configparser.Error:
+		print('ERROR: Optional ipv6 boolean in [%s] incorrectly specified' % dsec, file=sys.stderr)
 		return False
 
 	if not (usev4 or usev6):
-		print >> sys.stderr, 'ERROR: At least one of ipv4 and ipv6 booleans in [%s] must be true' % dsec
+		print('ERROR: At least one of ipv4 and ipv6 booleans in [%s] must be true' % dsec, file=sys.stderr)
 		return False
 
 	try: cachemap = readcache(cache)
 	except ValueError:
-		print >> sys.stderr, 'ERROR: Cache file %s exists but could not be parsed' % cache
+		print('ERROR: Cache file %s exists but could not be parsed' % cache, file=sys.stderr)
 		return False
 
 	from netaddr import IPAddress
@@ -257,22 +257,22 @@ def updateEngine(config):
 		else: addr6 = None
 
 		if not addr4 and not addr6:
-			print 'Update unnecessary for', hostname
+			print('Update unnecessary for', hostname)
 			continue
 
 		# Attempt an (atomic?) update
 		postresult = postupdate(hostname, password, addr4, addr6)
 		if postresult:
-			print 'Successful update for', hostname, (addr4 or ''), (addr6 or '')
+			print('Successful update for', hostname, (addr4 or ''), (addr6 or ''))
 			if addr4: crec['ipv4'] = addr4
 			if addr6: crec['ipv6'] = addr6
 			cachemap[hostname] = crec
 		else:
-			print 'Update failed for', hostname, (addr4 or ''), (addr6 or '')
+			print('Update failed for', hostname, (addr4 or ''), (addr6 or ''))
 
 	try: writecache(cachemap, cache)
 	except IOError:
-		print >> sys.stderr, 'ERROR: Could not store IP cache at location', cache
+		print('ERROR: Could not store IP cache at location', cache, file=sys.stderr)
 		return False
 
 	return True
@@ -280,16 +280,16 @@ def updateEngine(config):
 
 if __name__ == '__main__':
 	if len(sys.argv) != 2:
-		print >> sys.stderr, "USAGE: %s <configuration>" % sys.argv[0]
+		print("USAGE: %s <configuration>" % sys.argv[0], file=sys.stderr)
 		sys.exit(1)
 
 	# Read the configuration file
 	try:
 		f = open(sys.argv[1])
-		config = ConfigParser.SafeConfigParser()
+		config = configparser.SafeConfigParser()
 		config.readfp(f)
 	except Exception as e:
-		print >> sys.stderr, "ERROR: Unable to process configuration %s" % sys.argv[1]
+		print("ERROR: Unable to process configuration %s" % sys.argv[1], file=sys.stderr)
 		sys.exit(1)
 
 	if not updateEngine(config): sys.exit(1)
