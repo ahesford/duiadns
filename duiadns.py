@@ -286,8 +286,8 @@ if __name__ == '__main__':
 	# Read the configuration file
 	try:
 		f = open(sys.argv[1])
-		config = configparser.SafeConfigParser()
-		config.readfp(f)
+		config = configparser.ConfigParser()
+		config.read_file(f)
 	except Exception as e:
 		print("ERROR: Unable to process configuration %s" % sys.argv[1], file=sys.stderr)
 		sys.exit(1)
