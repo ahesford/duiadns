@@ -72,8 +72,8 @@ def findipv6():
 		addr does not contain the 'temporary' flag and is not
 		link-local or loopback.
 		'''
-		# Canonize the address
-		ipaddr = IPAddress(addr['addr'])
+		# Canonize the address, removing interface specifier if necessary
+		ipaddr = IPAddress(addr['addr'].split('%')[0])
 
 		# Ensure the address is not link-local or loopback
 		if ipaddr in IPNetwork('fe80::/10') or ipaddr == IPAddress('::1'):
