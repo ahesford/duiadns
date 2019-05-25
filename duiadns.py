@@ -39,7 +39,7 @@ def addrweb(v4=True):
 	This method consumes all connection and IP formatting errors.
 	'''
 	from netaddr import IPAddress, INET_PTON
-	ipurl = "http://%s.duia.ro" % ("ipv4" if v4 else "ipv6")
+	ipurl = "http://%s.duiadns.net" % ("ipv4" if v4 else "ipv6")
 	try: r = requests.get(ipurl, headers={'User-Agent': _useragent})
 	except: return None
 
@@ -134,7 +134,7 @@ def postupdate(host, md5pass, ipv4=None, ipv6=None):
 	elif not ipv6: ipstr = 'ipv4'
 	else: ipstr = 'ip'
 
-	srv = ("http://%s.duia.ro/dynamic.duia?host=%s&password=%s" % (ipstr, host, md5pass))
+	srv = ("http://%s.duiadns.net/dynamic.duia?host=%s&password=%s" % (ipstr, host, md5pass))
 
 	if ipv4: srv += "&ip4=" + ipv4
 	if ipv6: srv += "&ip6=" + ipv6
