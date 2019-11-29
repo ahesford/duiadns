@@ -65,19 +65,45 @@ def findipv6():
 	try: pubaddr = IPAddress(addrweb(v4=False))
 	except: return None
 
-	def validate_ipv6(addr):
+	def validate_ipv6(addr, ref):
 		'''
 		Convert an addr dictionary produced by netifaces into an
 		(IPAddress, bool) tuple where the bool is True if and only if
-		addr does not contain the 'temporary' flag and is not
-		link-local or loopback.
-		'''
-		# Canonize the address, removing interface specifier if necessary
-		ipaddr = IPAddress(addr['addr'].split('%')[0])
+		addr does not contain the 'temporary' flag and, if addr
+		contains a 'netmask' field to define a subnet, is in the same
+		subnet as ref, which must be a reference IPv6 address.
 
-		# Ensure the address is not link-local or loopback
-		if ipaddr in IPNetwork('fe80::/10') or ipaddr == IPAddress('::1'):
-			return ipaddr, False
+		If a netmask is not provided, or if ref cannot be interpreted
+		as an IPv6 address, the subnet check will not be performed;
+		instead, the address addr will return a corresponding True
+		value iff it is not a link-local or loopback address.
+		'''
+		# Remove interface specifier if necessary
+		ipaddr = addr['addr'].split('%')[0]
+
+		# Build subnet, if possible
+		try:
+			ipmask = addr['netmask'].split('/')[0]
+		except:
+			check_ref = False
+		else:
+			ipnet = IPNetwork(ipaddr + "/" + ipmask)
+			check_ref = True
+
+		# Render a canonical address
+		ipaddr = IPAddress(ipaddr)
+
+		try:
+			# If necessary, check reference against subnet
+			if not check_ref: raise ValueError
+			refaddr = IPAddress(ref)
+		except:
+			# Ensure the address is not link-local or loopback
+			if (ipaddr in IPNetwork('fe80::/10')
+					or ipaddr == IPAddress('::1')):
+				return ipaddr, False
+		else:
+			if refaddr not in ipnet: return ipaddr, False
 
 		# If no flags are present, assume the address is valid
 		try: flags = addr['flags']
@@ -93,7 +119,7 @@ def findipv6():
 		except KeyError: continue
 
 		# Build an IPAddress -> flags map
-		addrmap = dict(validate_ipv6(addr) for addr in addrs)
+		addrmap = dict(validate_ipv6(addr, pubaddr) for addr in addrs)
 
 		# If the public address is not on this interface, move on
 		if pubaddr not in addrmap: continue
