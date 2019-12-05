@@ -29,6 +29,8 @@ import requests
 import netifaces
 import configparser
 
+from netaddr import IPAddress, IPNetwork
+
 _useragent = "DUIA-DNS-UPDATER/1.0"
 
 def addrweb(v4=True):
@@ -38,8 +40,8 @@ def addrweb(v4=True):
 
 	This method consumes all connection and IP formatting errors.
 	'''
-	from netaddr import IPAddress, INET_PTON
-	ipurl = "http://%s.duiadns.net" % ("ipv4" if v4 else "ipv6")
+	from netaddr import INET_PTON
+	ipurl = "https://%s.duiadns.net" % ("ipv4" if v4 else "ipv6")
 	try: r = requests.get(ipurl, headers={'User-Agent': _useragent})
 	except: return None
 
@@ -50,67 +52,65 @@ def addrweb(v4=True):
 	return str(addr)
 
 
+def validate_ipv6(addr, ref=None, netmask=None):
+	'''
+	Convert addr, as a string representing an IPv6 address, to an IPAddress
+	instance, removing an interface specifier if necessary. The IPAddress
+	will be considered valid iff:
+
+	1. The IPAddress is not private, loopback, multicast, or a v4 mapping;
+
+	2. Either:
+
+	   a. ref and netmask together define a valid IPv6 network, and addr is
+	      in it; or
+
+	   b. ref and netmask fail to define a valid IPv6 network;
+
+	If the IPAddress is valid, it will be returned; otherwise, None will be
+	returned.
+
+	If addr, ref or netmask are malformed, a netaddr.AddrFormatError
+	exception may be raised.
+	'''
+	# Remove any interface specifier and canonicalize
+	ipaddr = IPAddress(addr.split('%')[0]).ipv6()
+
+	# A list of methods that check for invalid addresses
+	invalidators = [getattr(ipaddr, 'is_' + method) for method in
+				['multicast', 'ipv4_mapped', 'ipv4_compat',
+					'loopback', 'link_local' , 'private']]
+
+	if any(invalid() for invalid in invalidators): return None
+
+	# Try to ensure the address falls in the same network as ref
+	if ref and netmask:
+		# Netifaces uses mask/prefixlen notation; use the mask portion
+		netmask = netmask.split('/')[0]
+		ipnet = IPNetwork(str(ref) + '/' + netmask)
+		if ipaddr not in ipnet: return None
+
+	return ipaddr
+
+
 def findipv6():
 	'''
 	Use the public (and perhaps temporary) IPv6 address seen by DUIA to
-	select a non-temporary and non-link-local address on the same
-	interface. If the DUIA-identified address is not temporary, it is
-	always returned. Otherwise, the first suitable address is returned.
+	select a valid and, if possible, non-temporary address on the same
+	subnet as the public one.
 
-	If no matching address can be found, None is returned.
+	If no valid and suitable address can be found, return None.
 	'''
-	from netaddr import IPAddress, IPNetwork
+	try:
+		# Find and validate the address identified by DUIA
+		pubaddr = validate_ipv6(addrweb(v4=False))
+		if pubaddr is None: raise ValueError
+	except:
+		# No address, or an invalid one
+		return None
 
-	# Find the address identified by DUIA, if possible
-	try: pubaddr = IPAddress(addrweb(v4=False))
-	except: return None
-
-	def validate_ipv6(addr, ref):
-		'''
-		Convert an addr dictionary produced by netifaces into an
-		(IPAddress, bool) tuple where the bool is True if and only if
-		addr does not contain the 'temporary' flag and, if addr
-		contains a 'netmask' field to define a subnet, is in the same
-		subnet as ref, which must be a reference IPv6 address.
-
-		If a netmask is not provided, or if ref cannot be interpreted
-		as an IPv6 address, the subnet check will not be performed;
-		instead, the address addr will return a corresponding True
-		value iff it is not a link-local or loopback address.
-		'''
-		# Remove interface specifier if necessary
-		ipaddr = addr['addr'].split('%')[0]
-
-		# Build subnet, if possible
-		try:
-			ipmask = addr['netmask'].split('/')[0]
-		except:
-			check_ref = False
-		else:
-			ipnet = IPNetwork(ipaddr + "/" + ipmask)
-			check_ref = True
-
-		# Render a canonical address
-		ipaddr = IPAddress(ipaddr)
-
-		try:
-			# If necessary, check reference against subnet
-			if not check_ref: raise ValueError
-			refaddr = IPAddress(ref)
-		except:
-			# Ensure the address is not link-local or loopback
-			if (ipaddr in IPNetwork('fe80::/10')
-					or ipaddr == IPAddress('::1')):
-				return ipaddr, False
-		else:
-			if refaddr not in ipnet: return ipaddr, False
-
-		# If no flags are present, assume the address is valid
-		try: flags = addr['flags']
-		except KeyError: return ipaddr, True
-
-		return ipaddr, not (flags & netifaces.IN6_IFF_TEMPORARY)
-
+	# Build a mask to check for temporary addresses, if possible
+	tmpmask = getattr(netifaces, 'IN6_IFF_TEMPORARY', 0)
 
 	# Loop through all interfaces to find possible addresses
 	for iface in netifaces.interfaces():
@@ -118,21 +118,36 @@ def findipv6():
 		try: addrs = netifaces.ifaddresses(iface)[netifaces.AF_INET6]
 		except KeyError: continue
 
-		# Build an IPAddress -> flags map
-		addrmap = dict(validate_ipv6(addr, pubaddr) for addr in addrs)
+		# Map valid addresses to interface flags
+		addrmap = dict()
+		for addr in addrs:
+			# Skip entries with no address
+			if not addr.get('addr', None): continue
 
-		# If the public address is not on this interface, move on
+			# If no netmask is provided, subvert subnet checks
+			netmask = addr.get('netmask', None)
+
+			try:
+				# Validate and ensure same subnet as public address
+				ip = validate_ipv6(addr['addr'], pubaddr, netmask)
+				if ip is None: raise ValueError
+			except:
+				# Skip invalid or non-matching records
+				continue
+
+			# Map address to flags, if any
+			addrmap[ip] = addr.get('flags', 0)
+
+		# If public address is not on the interface, move on
 		if pubaddr not in addrmap: continue
 
-		# If the public address is valid, prefer it
-		if addrmap[pubaddr]: return str(pubaddr)
+		# If public address is temporary, prefer first permanent one
+		if addrmap[pubaddr] & tmpmask:
+			for addr, flags in addrmap.items():
+				if flags & tmpmask == 0: return addr
 
-		# Otherwise, just return the first valid address
-		for addr, valid in addrmap.items():
-			if valid: return str(addr)
-
-		# No need to look over other interfaces
-		break
+		# Default to public address if permanent or no permanents exist
+		return pubaddr
 
 	return None
 
@@ -160,7 +175,7 @@ def postupdate(host, md5pass, ipv4=None, ipv6=None):
 	elif not ipv6: ipstr = 'ipv4'
 	else: ipstr = 'ip'
 
-	srv = ("http://%s.duiadns.net/dynamic.duia?host=%s&password=%s" % (ipstr, host, md5pass))
+	srv = ("https://%s.duiadns.net/dynamic.duia?host=%s&password=%s" % (ipstr, host, md5pass))
 
 	if ipv4: srv += "&ip4=" + ipv4
 	if ipv6: srv += "&ip6=" + ipv6
@@ -208,7 +223,7 @@ def getaddrupdate(newaddr, cache):
 	and cache are both equivalent IP addresses, return None; otherwise,
 	return newaddr.
 	'''
-	from netaddr import IPAddress, AddrFormatError
+	from netaddr import AddrFormatError
 
 	try: newaddr = IPAddress(newaddr)
 	except AddrFormatError: return None
@@ -269,8 +284,6 @@ def updateEngine(config):
 		print('ERROR: Cache file %s exists but could not be parsed' % cache, file=sys.stderr)
 		return False
 
-	from netaddr import IPAddress
-
 	for hostname in hostnames:
 		crec = cachemap.get(hostname, {})
 
@@ -282,19 +295,23 @@ def updateEngine(config):
 			addr6 = getaddrupdate(findipv6(), crec.get('ipv6', None))
 		else: addr6 = None
 
+		hostmsg = hostname
+		if addr4: hostmsg += ' (ip4: %s)' % (addr4,)
+		if addr6: hostmsg += ' (ip6: %s)' % (addr6,)
+
 		if not addr4 and not addr6:
-			print('Update unnecessary for', hostname)
+			print('Update unnecessary for', hostmsg)
 			continue
 
 		# Attempt an (atomic?) update
 		postresult = postupdate(hostname, password, addr4, addr6)
 		if postresult:
-			print('Successful update for', hostname, (addr4 or ''), (addr6 or ''))
+			print('Successful update for', hostmsg)
 			if addr4: crec['ipv4'] = addr4
 			if addr6: crec['ipv6'] = addr6
 			cachemap[hostname] = crec
 		else:
-			print('Update failed for', hostname, (addr4 or ''), (addr6 or ''))
+			print('Update failed for', hostmsg)
 
 	try: writecache(cachemap, cache)
 	except IOError:

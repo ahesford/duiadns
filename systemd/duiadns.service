@@ -1,0 +1,8 @@
+[Unit]
+Description=DuiaDNS update
+After=network.target
+Requires=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/duiadns/bin/duiadns.py /opt/duiadns/etc/duiadns.conf

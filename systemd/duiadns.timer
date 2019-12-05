@@ -1,0 +1,13 @@
+[Unit]
+Description=duiadns.service timer - every 5 minutes
+After=network.target
+Requires=network.target
+
+[Timer]
+# Fire 10 seconds after the timer is loaded
+OnActiveSec=10s
+# Fire every 5 minutes after the last update
+OnUnitInactiveSec=5m
+
+[Install]
+WantedBy=timers.target

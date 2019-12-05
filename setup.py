@@ -8,7 +8,7 @@ client, duiadns.py is aware of temporary IPv6 addresses and attempts to
 identify the underlying permanent address when updating.
 '''
 
-# Copyright (c) 2015--2018 Andrew J. Hesford. All rights reserved.
+# Copyright (c) 2015--2019 Andrew J. Hesford. All rights reserved.
 # Restrictions are listed in the LICENSE file distributed with this package.
 
 DOCLINES = __doc__.split('\n')
@@ -26,8 +26,8 @@ if __name__ == '__main__':
 			platforms=['any'], license='BSD',
 			scripts=['duiadns.py',],
 			install_requires=[
-				'netifaces',
-				'netaddr',
-				'requests'
+				'netifaces>=0.10.5',
+				'netaddr>=0.7.18',
+				'requests>=2.7.0'
 			],
 		)
