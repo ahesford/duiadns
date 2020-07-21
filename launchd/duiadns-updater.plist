@@ -5,7 +5,7 @@
     <key>Label</key><string>duiadns-updater</string>
     <key>ProgramArguments</key>
     <array>
-	    <string>/usr/local/bin/duiadns.py</string>
+	    <string>/usr/local/bin/duiadns</string>
 	    <string>/usr/local/etc/duiadns/duiadns.conf</string>
     </array>
     <key>StartInterval</key><integer>600</integer>

@@ -5,4 +5,4 @@ Requires=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/duiadns/bin/duiadns.py /opt/duiadns/etc/duiadns.conf
+ExecStart=/opt/duiadns/bin/duiadns /opt/duiadns/etc/duiadns.conf

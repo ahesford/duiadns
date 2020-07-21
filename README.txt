@@ -16,7 +16,7 @@ hostnames using the same MD5 password hash. Parameters are encoded in a simple
 INI-style configuration. A commented sample is provided. To invoke the updater,
 simply run
 
-	duiadns.py /path/to/config
+	duiadns /path/to/config
 
 This script can be run by a regular user, but running as root (especially
 periodically) is recommended to allow permissions on the configuration file to

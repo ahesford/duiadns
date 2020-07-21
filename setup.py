@@ -2,10 +2,10 @@
 '''
 duiadns.py: A Python client for DUIA dynamic DNS updates
 
-The duiadns.py script is maintained by Andrew J. Hesford to update IPv4 and
-IPv6 addresses in the DUIA dynamic DNS system. Unlike the service-provided
-client, duiadns.py is aware of temporary IPv6 addresses and attempts to
-identify the underlying permanent address when updating.
+The duiadns script is maintained by Andrew J. Hesford to update IPv4 and IPv6
+addresses in the DUIA dynamic DNS system. Unlike the service-provided client,
+this client is aware of temporary IPv6 addresses and attempts to identify the
+underlying permanent address when updating.
 '''
 
 # Copyright (c) 2015--2019 Andrew J. Hesford. All rights reserved.
@@ -24,7 +24,7 @@ if __name__ == '__main__':
 			author='Andrew J. Hesford',
 			author_email='ajh@sideband.org',
 			platforms=['any'], license='BSD',
-			scripts=['duiadns.py',],
+			scripts=['duiadns',],
 			install_requires=[
 				'netifaces>=0.10.5',
 				'netaddr>=0.7.18',
