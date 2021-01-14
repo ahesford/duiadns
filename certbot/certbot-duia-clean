@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if ! command -v "duiatxt" >/dev/null 2>&1; then
+	echo "ERROR: this hook requires duiatxt"
+	exit 1
+fi
+
+if ! duiatxt "_acme-challenge.${CERTBOT_DOMAIN}" "UNUSED"; then
+	echo "ERROR: unable to clear TXT record of ACME challenge"
+	exit 1
+fi

@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if ! command -v "duiatxt" >/dev/null 2>&1; then
+	echo "ERROR: this hook requires duiatxt"
+	exit 1
+fi
+
+if ! duiatxt "_acme-challenge.${CERTBOT_DOMAIN}" "${CERTBOT_VALIDATION}"; then
+	echo "ERROR: unable to update TXT record with ACME challenge"
+	exit 1
+fi
+
+sleep 30
