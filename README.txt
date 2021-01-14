@@ -1,3 +1,5 @@
+## duiadns
+
 This is a simple dynamic updater for DUIA DNS written in Python.
 
 Dependencies:
@@ -35,3 +37,13 @@ The updater will ignore any unreasonable addresses:
 If possible, the updater will also attempt to substitute a stable address
 found on the same subnet as the DUIA response if the response corresponds to a
 temporary address. (This is currently only possible on BSD or macOS systems.)
+
+## duiatxt
+
+This is a simple shell script to send dynamic TXT updates for a given host. It
+relies on curl to make the update request and awk to process a duiadns.conf
+file for a password. Parsing is unaware of actual file structure, so any line
+that starts with "password: " will assume the second token is the password to
+use, even if it isn't in a "[duia]" section.
+
+NOTE: This script will make the password visible on the curl command line.

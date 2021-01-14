@@ -1,0 +1,39 @@
+#!/bin/sh
+
+usage="USAGE: $0 <host> <content> [configuration]"
+
+host="${1?${usage}}"
+content="${2?${usage}}"
+configuration="${3:-/etc/duiadns.conf}"
+
+if [ ! -r "${configuration}" ]; then
+	echo "ERROR: unable to read DUIA configuration from ${configuration}"
+	exit 1
+fi
+
+password="$( awk '/^password: /{ print $2 }' "${configuration}" )"
+
+if [ -z "${password}" ]; then
+	echo "ERROR: unable to recover password from ${configuration}"
+	exit 1
+fi
+
+code="$( curl -A "DUIA-TXT-UPDATER/1.0" -L -X PUT -G \
+		-s -o /dev/null -w '%{http_code}' \
+		--data-urlencode "host=${host}" \
+		--data-urlencode "password=${password}" \
+		--data-urlencode "txt=${content}" \
+		'https://ip.duiadns.net/dynamic.duia' )"
+
+ret=$?
+if [ "$ret" -ne 0 ]; then
+	echo "ERROR: curl failed with code ${ret}"
+	exit ${ret}
+fi
+
+if [ "${code}" -ge 200 ] && [ "${code}" -lt 300 ]; then
+	exit 0
+else
+	echo "ERROR: server returned status code ${code}"
+	exit 1
+fi
