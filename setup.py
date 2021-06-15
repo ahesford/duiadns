@@ -8,11 +8,11 @@ this client is aware of temporary IPv6 addresses and attempts to identify the
 underlying permanent address when updating.
 '''
 
-# Copyright (c) 2015--2020 Andrew J. Hesford. All rights reserved.
+# Copyright (c) 2015--2021 Andrew J. Hesford. All rights reserved.
 # Restrictions are listed in the LICENSE file distributed with this package.
 
 DOCLINES = __doc__.split('\n')
-VERSION = '1.1'
+VERSION = '1.2'
 
 if __name__ == '__main__':
 	from setuptools import setup
