@@ -33,21 +33,26 @@ from netaddr import IPAddress, IPNetwork
 
 _useragent = "DUIA-DNS-UPDATER/1.0"
 
-def addrweb(v4=True):
+def addrweb(timeout, v4=True):
 	'''
 	Returns the address (IPv4 if v4 is True, IPv6 otherwise) as seen by the
-	DUIA web server. If an address is not available, returns None.
+	DUIA web server. If an address is not available or no response is
+	received before the given timeout (in seconds), None will be returned.
 
 	This method consumes all connection and IP formatting errors.
 	'''
 	from netaddr import INET_PTON
-	ipurl = "https://%s.duiadns.net" % ("ipv4" if v4 else "ipv6")
-	try: r = requests.get(ipurl, headers={'User-Agent': _useragent})
-	except: return None
+	ipurl = f"https://{'ipv4' if v4 else 'ipv6'}.duiadns.net"
+	try: r = requests.get(ipurl, headers={'User-Agent': _useragent}, timeout=timeout)
+	except Exception as err:
+		print(f'ERROR: unable to fetch address from {ipurl}: {err}', file=sys.stderr)
+		return None
 
 	# Convert the response to an address if possible
 	try: addr = IPAddress(r.text, version=(4 if v4 else 6), flags=INET_PTON)
-	except: return None
+	except Exception as err:
+		print(f'ERROR: unable to parse address from {ipurl}: {err}', file=sys.stderr)
+		return None
 
 	return str(addr)
 
@@ -93,7 +98,7 @@ def validate_ipv6(addr, ref=None, netmask=None):
 	return ipaddr
 
 
-def findipv6():
+def findipv6(timeout):
 	'''
 	Use the public (and perhaps temporary) IPv6 address seen by DUIA to
 	select a valid and, if possible, non-temporary address on the same
@@ -103,7 +108,7 @@ def findipv6():
 	'''
 	try:
 		# Find and validate the address identified by DUIA
-		pubaddr = validate_ipv6(addrweb(v4=False))
+		pubaddr = validate_ipv6(addrweb(timeout, v4=False))
 		if pubaddr is None: raise ValueError
 	except:
 		# No address, or an invalid one
@@ -152,20 +157,20 @@ def findipv6():
 	return None
 
 
-def findipv4():
+def findipv4(timeout):
 	'''
 	Use a DUIA service to determine the public IP address of this machine.
 	'''
-	return addrweb(v4=True)
+	return addrweb(timeout, v4=True)
 
 
-def postupdate(host, md5pass, ipv4=None, ipv6=None):
+def postupdate(host, md5pass, timeout, ipv4=None, ipv6=None):
 	'''
 	Post an update of the specified host with the provided IPv4 and IPv6
 	addresses. Either can be None to skip an update of the corresponding
 	record.
 
-	Returns True on success, False otherwise
+	Returns True on success, False otherwise.
 	'''
 	if not (ipv4 or ipv6):
 		raise ValueError('At least one of ipv4 and ipv6 must be specified')
@@ -175,14 +180,16 @@ def postupdate(host, md5pass, ipv4=None, ipv6=None):
 	elif not ipv6: ipstr = 'ipv4'
 	else: ipstr = 'ip'
 
-	srv = ("https://%s.duiadns.net/dynamic.duia?host=%s&password=%s" % (ipstr, host, md5pass))
+	srv = f'https://{ipstr}.duiadns.net/dynamic.duia?host={host}&password={md5pass}'
 
 	if ipv4: srv += "&ip4=" + ipv4
 	if ipv6: srv += "&ip6=" + ipv6
 
 	# Try to perform the update
-	try: r = requests.get(srv, headers={'User-Agent': _useragent})
-	except: return False
+	try: r = requests.get(srv, headers={'User-Agent': _useragent}, timeout=timeout)
+	except Exception as err:
+		print(f'ERROR: unable to submit address update: {err}', file=sys.stderr)
+		return False
 
 	return r.status_code == 200
 
@@ -244,19 +251,19 @@ def updateEngine(config):
 	try:
 		hostnames = config.get(dsec, 'hostname').split()
 	except configparser.Error:
-		print('ERROR: Configuration must specify at least one hostname in [%s]' % dsec, file=sys.stderr)
+		print(f'ERROR: Configuration must specify at least one hostname in [{dsec}]', file=sys.stderr)
 		return False
 
 	try:
 		password = config.get(dsec, 'password')
 	except configparser.Error:
-		print('ERROR: Configuration must specify password in [%s]' % dsec, file=sys.stderr)
+		print(f'ERROR: Configuration must specify password in [{dsec}]', file=sys.stderr)
 		return False
 
 	try:
 		cache = config.get(dsec, 'cache')
 	except configparser.Error:
-		print('ERROR: Configuration must specify cache in [%s]' % dsec, file=sys.stderr)
+		print(f'ERROR: Configuration must specify cache in [{dsec}]', file=sys.stderr)
 		return False
 
 	try:
@@ -264,7 +271,7 @@ def updateEngine(config):
 	except configparser.NoOptionError:
 		usev4 = False
 	except configparser.Error:
-		print('ERROR: Optional ipv4 boolean in [%s] incorrectly specified' % dsec, file=sys.stderr)
+		print(f'ERROR: Optional ipv4 boolean in [{dsec}] incorrectly specified', file=sys.stderr)
 		return False
 
 	try:
@@ -272,16 +279,24 @@ def updateEngine(config):
 	except configparser.NoOptionError:
 		usev6 = False
 	except configparser.Error:
-		print('ERROR: Optional ipv6 boolean in [%s] incorrectly specified' % dsec, file=sys.stderr)
+		print(f'ERROR: Optional ipv6 boolean in [{dsec}] incorrectly specified', file=sys.stderr)
+		return False
+
+	try:
+		timeout = config.getfloat(dsec, 'timeout')
+	except configparser.NoOptionError:
+		timeout = 10
+	except configparser.Error:
+		print(f'ERROR: Optional timeout float in [{dsec}] incorrectly specified', file=sys.stderr)
 		return False
 
 	if not (usev4 or usev6):
-		print('ERROR: At least one of ipv4 and ipv6 booleans in [%s] must be true' % dsec, file=sys.stderr)
+		print(f'ERROR: At least one of ipv4 and ipv6 booleans in [{dsec}] must be true', file=sys.stderr)
 		return False
 
 	try: cachemap = readcache(cache)
 	except ValueError:
-		print('ERROR: Cache file %s exists but could not be parsed' % cache, file=sys.stderr)
+		print(f'ERROR: Cache file {cache} exists but could not be parsed', file=sys.stderr)
 		return False
 
 	for hostname in hostnames:
@@ -289,22 +304,22 @@ def updateEngine(config):
 
 		# Determine if the IPv4 and IPv6 addresses need updating
 		if usev4:
-			addr4 = getaddrupdate(findipv4(), crec.get('ipv4', None))
+			addr4 = getaddrupdate(findipv4(timeout), crec.get('ipv4', None))
 		else: addr4 = None
 		if usev6:
-			addr6 = getaddrupdate(findipv6(), crec.get('ipv6', None))
+			addr6 = getaddrupdate(findipv6(timeout), crec.get('ipv6', None))
 		else: addr6 = None
 
 		hostmsg = hostname
-		if addr4: hostmsg += ' (ip4: %s)' % (addr4,)
-		if addr6: hostmsg += ' (ip6: %s)' % (addr6,)
+		if addr4: hostmsg += f' (ip4: {addr4})'
+		if addr6: hostmsg += f' (ip6: {addr6})'
 
 		if not addr4 and not addr6:
 			print('Update unnecessary for', hostmsg)
 			continue
 
 		# Attempt an (atomic?) update
-		postresult = postupdate(hostname, password, addr4, addr6)
+		postresult = postupdate(hostname, password, timeout, addr4, addr6)
 		if postresult:
 			print('Successful update for', hostmsg)
 			if addr4: crec['ipv4'] = addr4
@@ -323,7 +338,7 @@ def updateEngine(config):
 
 if __name__ == '__main__':
 	if len(sys.argv) != 2:
-		print("USAGE: %s <configuration>" % sys.argv[0], file=sys.stderr)
+		print(f"USAGE: {sys.argv[0]} <configuration>", file=sys.stderr)
 		sys.exit(1)
 
 	# Read the configuration file
@@ -332,7 +347,7 @@ if __name__ == '__main__':
 		config = configparser.ConfigParser()
 		config.read_file(f)
 	except Exception as e:
-		print("ERROR: Unable to process configuration %s" % sys.argv[1], file=sys.stderr)
+		print(f"ERROR: Unable to process configuration {sys.argv[1]}", file=sys.stderr)
 		sys.exit(1)
 
 	if not updateEngine(config): sys.exit(1)
