@@ -63,7 +63,8 @@ def validate_ipv6(addr, ref=None, netmask=None):
 	instance, removing an interface specifier if necessary. The IPAddress
 	will be considered valid iff:
 
-	1. The IPAddress is not private, loopback, multicast, or a v4 mapping;
+	1. The IPAddress is not "unique local", loopback, multicast, or a v4
+	   mapping;
 
 	2. Either:
 
@@ -84,7 +85,7 @@ def validate_ipv6(addr, ref=None, netmask=None):
 	# A list of methods that check for invalid addresses
 	invalidators = [getattr(ipaddr, 'is_' + method) for method in
 				['multicast', 'ipv4_mapped', 'ipv4_compat',
-					'loopback', 'link_local' , 'private']]
+					'loopback', 'link_local' , 'ipv6_unique_local']]
 
 	if any(invalid() for invalid in invalidators): return None
 
